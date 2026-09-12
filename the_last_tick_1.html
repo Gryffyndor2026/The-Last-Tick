@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>The Last Tick</title>
+<style>
+  * { box-sizing: border-box; margin:0; padding:0; }
+  html,body{
+    width:100%; height:100%; background:#000; overflow:hidden;
+    font-family: 'Georgia','Times New Roman',serif; color:#d8cfc2;
+  }
+  #wrap{
+    position:relative; width:960px; height:540px; margin:20px auto 0 auto;
+    box-shadow:0 0 60px 20px rgba(0,0,0,0.9);
+    border:2px solid #241b17;
+  }
+  canvas{
+    position:absolute; top:0; left:0; width:960px; height:540px;
+    background:#0a0808; image-rendering: pixelated; cursor:crosshair;
+  }
+  #vignette{
+    position:absolute; top:0; left:0; width:960px; height:540px; pointer-events:none;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 40%, rgba(0,0,0,0.75) 100%);
+    z-index:5;
+  }
+  #grain{
+    position:absolute; top:0; left:0; width:960px; height:540px; pointer-events:none;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(0,0,0,0.02) 2px);
+    z-index:6;
+  }
+  #hud{
+    position:absolute; top:10px; left:10px; z-index:10; pointer-events:none;
+    text-shadow: 0 0 6px #000, 0 0 3px #000;
+    width:400px;
+  }
+  #hpBarOuter{
+    width:260px; height:18px; border:2px solid #4a1414; background:#1a0a0a;
+    box-shadow: inset 0 0 6px #000;
+  }
+  #hpBarInner{
+    height:100%; width:100%; background:linear-gradient(90deg,#7a1010,#c22b2b);
+    transition:width 0.2s;
+  }
+  #hpLabel{ font-size:12px; letter-spacing:1px; color:#c9a; margin-bottom:3px; color:#e0c9b8;}
+  #matBar{
+    margin-top:10px; font-size:12px; display:flex; gap:10px; flex-wrap:wrap; max-width:380px;
+    color:#cbb89f;
+  }
+  .matChip{ background:rgba(20,14,12,0.6); border:1px solid #4a382c; padding:2px 6px; border-radius:3px;}
+  #weaponInfo{
+    position:absolute; top:10px; right:14px; z-index:10; text-align:right; font-size:13px;
+    text-shadow:0 0 6px #000; color:#d8cfc2; pointer-events:none;
+  }
+  #bossBarWrap{
+    position:absolute; bottom:18px; left:50%; transform:translateX(-50%); width:640px; z-index:10;
+    text-align:center; display:none; pointer-events:none;
+  }
+  #bossName{ font-size:15px; letter-spacing:3px; color:#e0b0b0; text-shadow:0 0 8px #300; margin-bottom:4px;}
+  #bossHpOuter{ width:100%; height:14px; background:#0e0808; border:2px solid #3a1010;}
+  #bossHpInner{ height:100%; width:100%; background:linear-gradient(90deg,#5a0d0d,#a01c1c); transition:width 0.2s;}
+
+  #promptBar{
+    position:absolute; bottom:6px; left:10px; z-index:10; font-size:10.5px; color:#7d7264;
+    pointer-events:none; letter-spacing:0.4px; max-width:700px;
+  }
+
+  #overlay{
+    position:absolute; top:0; left:0; width:960px; height:540px; z-index:50;
+    display:flex; align-items:center; justify-content:center; flex-direction:column;
+    background:rgba(4,2,2,0.92); text-align:center; padding:40px;
+  }
+  #overlay.hidden{ display:none; }
+  #overlay h1{
+    font-size:44px; color:#a92626; letter-spacing:6px; text-shadow:0 0 20px #400,0 0 40px #200;
+    margin-bottom:10px; font-weight:normal;
+  }
+  #overlay h2{
+    font-size:24px; color:#c98; letter-spacing:3px; margin-bottom:20px; font-weight:normal;
+  }
+  #overlay p{
+    max-width:680px; font-size:17px; line-height:1.7; color:#cfc3b3; margin-bottom:14px;
+  }
+  .oldbtn{
+    background:linear-gradient(#2a1c17,#160e0b); border:1px solid #6b4c3a; color:#e6d5bf;
+    padding:12px 26px; font-size:15px; letter-spacing:2px; cursor:pointer; margin:8px;
+    font-family:inherit; transition:all 0.15s;
+  }
+  .oldbtn:hover{ background:linear-gradient(#4a2c1c,#2a1a10); border-color:#c98; color:#fff; }
+  #ticker{ font-size:12px; color:#7d6a58; margin-top:16px; letter-spacing:2px;}
+
+  #craftPanel{
+    position:absolute; top:60px; left:50%; transform:translateX(-50%); width:520px; z-index:40;
+    background:rgba(10,6,6,0.95); border:1px solid #5a3d2c; padding:18px 22px; display:none;
+  }
+  #craftPanel h3{ color:#c98; letter-spacing:2px; margin-bottom:12px; font-weight:normal; font-size:18px;}
+  .craftItem{
+    display:flex; justify-content:space-between; align-items:center; padding:8px 0;
+    border-bottom:1px solid #2a1c17; font-size:13px;
+  }
+  .craftItem .desc{ color:#bcae9a; max-width:300px; }
+  .craftItem .req{ color:#8a7460; font-size:11px; margin-top:3px;}
+  .craftBtn{
+    background:#241812; border:1px solid #6b4c3a; color:#dcc; padding:6px 12px; cursor:pointer;
+    font-family:inherit; font-size:12px;
+  }
+  .craftBtn:disabled{ opacity:0.35; cursor:not-allowed; }
+  .craftBtn:not(:disabled):hover{ background:#4a2c1c; }
+
+  #dialogueBox{
+    position:absolute; bottom:0; left:0; width:960px; z-index:45; display:none;
+    background:linear-gradient(rgba(6,3,3,0) 0%, rgba(6,3,3,0.95) 30%); padding:30px 40px 26px 40px;
+  }
+  #dialogueText{ font-size:16px; line-height:1.6; color:#e3d6c4; max-width:820px; min-height:60px;}
+  #dialogueHint{ font-size:11px; color:#7d6a58; margin-top:10px; letter-spacing:1px;}
+
+  #choiceOverlay{
+    position:absolute; top:0; left:0; width:960px; height:540px; z-index:60; display:none;
+    background:rgba(4,2,2,0.88); align-items:center; justify-content:center; flex-direction:column;
+    text-align:center;
+  }
+  #choiceOverlay p{ max-width:700px; font-size:18px; color:#e3d6c4; margin-bottom:24px; line-height:1.6; white-space:pre-line;}
+  #choiceBtns{ display:flex; gap:26px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="960" height="540"></canvas>
+  <div id="vignette"></div>
+  <div id="grain"></div>
+
+  <div id="hud">
+    <div id="hpLabel">ARTHUR</div>
+    <div id="hpBarOuter"><div id="hpBarInner"></div></div>
+    <div id="matBar"></div>
+  </div>
+
+  <div id="weaponInfo"></div>
+
+  <div id="bossBarWrap">
+    <div id="bossName"></div>
+    <div id="bossHpOuter"><div id="bossHpInner"></div></div>
+  </div>
+
+  <div id="promptBar">A/D moverse · W saltar · S agacharse · E impulso a vapor · CLICK IZQ atacar · Q cambiar arma (cuerpo a cuerpo / arco) · R (mantener) recolectar materiales · C crafteo · P pausa</div>
+
+  <div id="dialogueBox">
+    <div id="dialogueText"></div>
+    <div id="dialogueHint">Presiona ESPACIO o ENTER para continuar...</div>
+  </div>
+
+  <div id="craftPanel">
+    <h3>TALLER — Crafteo</h3>
+    <div id="craftList"></div>
+    <div style="text-align:right; margin-top:10px;">
+      <span class="craftBtn" id="closeCraft" style="cursor:pointer;">Cerrar (C)</span>
+    </div>
+  </div>
+
+  <div id="choiceOverlay">
+    <p id="choiceText"></p>
+    <div id="choiceBtns"></div>
+  </div>
+
+  <div id="overlay">
+    <h1>THE LAST TICK</h1>
+    <h2>un descenso, un reloj, una mentira</h2>
+    <p>Arthur, conserje de una vieja torre de reloj en Inglaterra, cae hacia unas ruinas que no deberían
+    existir bajo su lugar de trabajo. Sin memoria, deberá recolectar materiales, forjar armas y
+    sobrevivir a lo que el Limo ha creado, mientras recuerda quién es y qué se esconde en lo más alto
+    de la torre.</p>
+    <button class="oldbtn" id="startBtn">COMENZAR</button>
+    <div id="ticker">Historia, diseño y dirección de arte: documento original del usuario</div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   THE LAST TICK — motor de juego en canvas 2D puro
+   ============================================================ */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const GRAVITY = 1500;
+const STAND_H = 44, CROUCH_H = 26;
+
+// ---------- utilidades ----------
+function rectsOverlap(a,b){
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+
+// ---------- input teclado ----------
+const keys = {};
+window.addEventListener('keydown', e=>{
+  keys[e.code]=true;
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+  if(e.repeat) return; // evita que mantener la tecla presionada dispare toggles repetidamente (Q, P, C)
+  handleUIKey(e.code);
+  handleOneShotKeys(e.code);
+});
+window.addEventListener('keyup', e=>{ keys[e.code]=false; });
+
+// ---------- input mouse ----------
+let mouseX = W/2, mouseY = H/2, mouseDown = false;
+canvas.addEventListener('mousemove', e=>{
+  const r = canvas.getBoundingClientRect();
+  mouseX = (e.clientX-r.left) * (W/r.width);
+  mouseY = (e.clientY-r.top) * (H/r.height);
+});
+canvas.addEventListener('mousedown', e=>{ if(e.button===0) mouseDown = true; });
+window.addEventListener('mouseup', e=>{ if(e.button===0) mouseDown = false; });
+canvas.addEventListener('contextmenu', e=> e.preventDefault());
+
+// ============================================================
+// ESTADO GLOBAL DEL JUEGO
+// ============================================================
+const GameState = {
+  MENU:'MENU', DIALOGUE:'DIALOGUE', LAB:'LAB', TOWER:'TOWER',
+  CHOICE:'CHOICE', ENDING:'ENDING', PAUSED_CRAFT:'PAUSED_CRAFT',
+  PAUSED:'PAUSED', CUTSCENE:'CUTSCENE'
+};
+let state = GameState.MENU;
+let prevStateBeforeCraft = null;
+let prevStateBeforePause = null;
+
+// cola de diálogos
+let dialogueQueue = [];
+let dialogueCallback = null;
+let returnStateAfterDialogue = GameState.LAB;
+
+function showDialogue(lines, onFinish){
+  dialogueQueue = Array.isArray(lines)? lines.slice(): [lines];
+  dialogueCallback = onFinish || null;
+  state = GameState.DIALOGUE;
+  document.getElementById('dialogueBox').style.display = 'block';
+  document.getElementById('dialogueText').textContent = dialogueQueue.shift();
+}
+function advanceDialogue(){
+  if(dialogueQueue.length===0){
+    document.getElementById('dialogueBox').style.display = 'none';
+    const cb = dialogueCallback; dialogueCallback = null;
+    state = returnStateAfterDialogue;
+    if(cb) cb();
+  } else {
+    document.getElementById('dialogueText').textContent = dialogueQueue.shift();
+  }
+}
+function handleUIKey(code){
+  if(state===GameState.DIALOGUE && (code==='Space'||code==='Enter')){
+    advanceDialogue();
+  }
+}
+
+// teclas de una sola pulsación (no continuas): Q cambiar arma, C crafteo, P pausa
+function handleOneShotKeys(code){
+  if(code==='KeyQ' && (state===GameState.LAB || state===GameState.TOWER)){
+    player.weapon = player.weapon==='melee' ? 'bow' : 'melee';
+    updateWeaponUI();
+  }
+  if(code==='KeyC'){
+    if(state===GameState.LAB || state===GameState.TOWER) toggleCraft(true);
+    else if(state===GameState.PAUSED_CRAFT) toggleCraft(false);
+  }
+  if(code==='KeyP'){
+    if(state===GameState.LAB || state===GameState.TOWER){
+      prevStateBeforePause = state;
+      state = GameState.PAUSED;
+    } else if(state===GameState.PAUSED){
+      state = prevStateBeforePause;
+    }
+  }
+}
+
+// ============================================================
+// JUGADOR
+// ============================================================
+const player = {
+  x:80, y:380, w:28, h:STAND_H, vx:0, vy:0,
+  hp:100, maxHp:100,
+  onGround:false, facing:1, crouching:false,
+  materials:{metal:0, wood:0, thread:0, gear:0, handpiece:0, bandage:0, antidote:0},
+  hasFiles:false, hasKey:false,
+  weapon:'melee', // 'melee' | 'bow'
+  meleeUpgraded:false,
+  bowTier:0,
+  armorLevel:0, armorDurability:0,
+  hasShield:false,
+  attackCooldown:0,
+  steamCooldown:0, steamMaxCooldown:1.5,
+  invuln:0, attackAnimTimer:0,
+  dead:false,
+  crafted:{armor:false, extractor:false, shield:false}
+};
+
+const WEAPON_STATS = {
+  melee_base:  {dmg:20, range:70,  name:'Half-Sharpened'},
+  melee_up:    {dmg:50, range:44,  name:'Half-Sharpened (filo de Limo)'},
+  bow: [
+    {dmg:15, range:240, name:'Basic Arch'},
+    {dmg:20, range:480, name:'Improved Bow I'},
+    {dmg:25, range:720, name:'Improved Bow II'},
+    {dmg:30, range:960, name:'Improved Bow III'},
+  ]
+};
+function currentMeleeStats(){ return player.meleeUpgraded ? WEAPON_STATS.melee_up : WEAPON_STATS.melee_base; }
+function currentBowStats(){ return WEAPON_STATS.bow[player.bowTier]; }
+
+// ============================================================
+// PROYECTILES
+// ============================================================
+let projectiles = [];
+let enemyProjectiles = [];
+
+// ============================================================
+// MATERIALES EN EL MUNDO
+// ============================================================
+const PILE_TYPES = ['metal','wood','thread','gear','handpiece'];
+const MAT_COLORS = {
+  metal:'#9aa4ad', wood:'#7a5230', thread:'#c9b26b', gear:'#8f8f6e',
+  handpiece:'#d8d0b0', bandage:'#e4e0d6', antidote:'#7fae7a',
+  archivo:'#d8cba0', llave:'#c9a94a'
+};
+const MAT_LABELS = {
+  metal:'Metal', wood:'Madera', thread:'Hilo', gear:'Engranaje',
+  handpiece:'Aguja de reloj', bandage:'Vendaje', antidote:'Antídoto',
+  archivo:'Archivo', llave:'Llave'
+};
+const GATHER_TICK = 0.4; // segundos por unidad recolectada
+
+function makePickup(type,x,y,amount){
+  const isPile = PILE_TYPES.includes(type);
+  return {
+    type, x, y, w:16, h:16, amount: amount||1, taken:false, bob:Math.random()*10,
+    isPile, remaining: amount||1, capacity: amount||1, gatherProgress:0
+  };
+}
+
+// ============================================================
+// ENEMIGOS: MINDLESS
+// ============================================================
+function makeMindless(x,y,range){
+  return {
+    kind:'mindless', x, y, w:30, h:46, vx:0, vy:0,
+    hp:100, maxHp:100, dmg:5,
+    state:'patrol', patrolDir: (Math.random()<0.5?-1:1), patrolOrigin:x, patrolRange: range||90,
+    attackCooldown:0, hitFlash:0, dead:false, animT: Math.random()*10
+  };
+}
+
+// ============================================================
+// SALAS DEL LABORATORIO
+// ============================================================
+function groundPlatform(y){ return {x:0,y:y,w:960,h:540-y}; }
+const ELEVATOR_ROOM_INDEX = 5;
+const labRooms = [];
+
+// --- Sala 0: donde Arthur despierta ---
+labRooms.push({
+  name:'Zona de caída',
+  platforms:[ groundPlatform(460) ],
+  pickups:[],
+  enemySpecs:[],
+  bg:'lab_rubble_entry'
+});
+
+// --- Sala 1: pasillo del laboratorio ---
+labRooms.push({
+  name:'Pasillo derrumbado',
+  platforms:[
+    groundPlatform(460),
+    {x:300,y:360,w:140,h:20},
+    {x:620,y:320,w:160,h:20}
+  ],
+  pickups:[
+    ['metal',150,430,3],['metal',420,330,3],['metal',760,290,3],
+    ['wood',220,430,2],['wood',680,290,2],
+    ['gear',225,430,1],['handpiece',235,430,1],
+    ['thread',500,430,1],
+  ],
+  enemySpecs:[ [380,414,100], [700,414,110] ],
+  bg:'lab_hall'
+});
+
+// --- Sala 2: sala previa al jefe ---
+labRooms.push({
+  name:'Antesala del quirófano',
+  platforms:[
+    groundPlatform(460),
+    {x:150,y:370,w:150,h:20},
+    {x:480,y:330,w:150,h:20},
+    {x:750,y:390,w:150,h:20},
+  ],
+  pickups:[
+    ['metal',80,430,3],['metal',560,300,3],
+    ['wood',300,430,2],
+    ['gear',305,430,1],['handpiece',315,430,1],
+    ['thread',830,360,1],
+    ['bandage',210,340,2],
+    ['antidote',520,300,1],
+  ],
+  enemySpecs:[ [260,414,90], [640,414,100], [860,414,80] ],
+  bg:'lab_pre_boss'
+});
+
+// --- Sala 3: jefe The Surgeon ---
+labRooms.push({
+  name:'Quirófano',
+  platforms:[ groundPlatform(460) ],
+  pickups:[],
+  enemySpecs:[],
+  isBossRoom:true,
+  exitCondition: ()=> surgeon && surgeon.dead,
+  bg:'lab_operating_room'
+});
+
+// --- Sala 4: Archivo del Experimento 0 ---
+labRooms.push({
+  name:'Archivo del Experimento 0',
+  platforms:[
+    groundPlatform(460),
+    {x:330,y:400,w:120,h:16},
+    {x:600,y:400,w:120,h:16},
+  ],
+  pickups:[
+    ['archivo',370,376,1],
+    ['llave',640,376,1],
+  ],
+  enemySpecs:[],
+  exitCondition: ()=> player.hasFiles && player.hasKey,
+  bg:'lab_archive'
+});
+
+// --- Sala 5: sala del ascensor ---
+labRooms.push({
+  name:'Sala del ascensor',
+  platforms:[ groundPlatform(460) ],
+  pickups:[],
+  enemySpecs:[],
+  isElevatorRoom:true,
+  elevatorZone:{x:770,y:330,w:100,h:130},
+  bg:'lab_elevator'
+});
+
+let currentRoomIndex = 0;
+let currentRoom = null;
+let roomEnemies = [];
+let roomPickups = [];
+let elevatorTriggered = false;
+
+function loadRoom(idx){
+  currentRoomIndex = idx;
+  currentRoom = labRooms[idx];
+  roomEnemies = currentRoom.enemySpecs.map(([x,y,range])=>makeMindless(x,y,range));
+  roomPickups = currentRoom.pickups.map(([type,x,y,amt])=>makePickup(type,x,y,amt));
+  player.x = 40; player.y = 380; player.vx=0; player.vy=0;
+  projectiles = []; enemyProjectiles = [];
+  elevatorTriggered = false;
+  if(currentRoom.isBossRoom) spawnSurgeon();
+  updateWeaponUI();
+}
+
+// ============================================================
+// JEFE 1: THE SURGEON
+// ============================================================
+let surgeon = null;
+function spawnSurgeon(){
+  surgeon = {
+    kind:'surgeon', x:760, y:380, w:46, h:60, vx:0, vy:0,
+    hp:200, maxHp:200, dmg:10,
+    state:'idle', timer: 1.2, facing:-1,
+    hitFlash:0, dead:false
+  };
+  showBossBar('THE SURGEON');
+}
+function showBossBar(name){
+  document.getElementById('bossBarWrap').style.display='block';
+  document.getElementById('bossName').textContent = name;
+}
+function hideBossBar(){ document.getElementById('bossBarWrap').style.display='none'; }
+function setBossHp(cur,max){ document.getElementById('bossHpInner').style.width = clamp(cur/max,0,1)*100+'%'; }
+
+function updateSurgeon(dt){
+  if(!surgeon || surgeon.dead) return;
+  const s = surgeon;
+  s.hitFlash = Math.max(0, s.hitFlash-dt);
+  s.facing = player.x < s.x ? -1 : 1;
+  setBossHp(s.hp, s.maxHp);
+  s.timer -= dt;
+
+  if(s.state==='idle'){
+    if(s.timer<=0){
+      const dist = Math.abs(player.x - s.x);
+      const roll = Math.random();
+      if(dist < 90){ s.state='melee'; s.timer=0.55; }
+      else if(dist < 260 && roll<0.5){ s.state='dash'; s.timer=0.45; s.vx = s.facing*520; }
+      else { s.state='throw'; s.timer=0.5; }
+    }
+  } else if(s.state==='dash'){
+    s.x += s.vx*dt;
+    s.x = clamp(s.x, 20, 900);
+    if(s.timer<=0){ s.vx=0; s.state='cooldown'; s.timer=0.7; }
+    if(rectsOverlap(s, hitboxOf(player)) && player.invuln<=0) damagePlayer(s.dmg+3);
+  } else if(s.state==='melee'){
+    if(s.timer<=0){
+      const hb = {x: s.x + (s.facing===1? s.w: -46), y:s.y, w:46, h:s.h};
+      if(rectsOverlap(hb, hitboxOf(player)) && player.invuln<=0) damagePlayer(s.dmg);
+      s.state='cooldown'; s.timer=0.9;
+    }
+  } else if(s.state==='throw'){
+    if(s.timer<=0){
+      enemyProjectiles.push({ x:s.x+ s.w/2, y:s.y+16, vx: s.facing*380, vy:-40, w:10,h:10, dmg:8, life:2.2, kind:'scalpel' });
+      s.state='cooldown'; s.timer=0.8;
+    }
+  } else if(s.state==='cooldown'){
+    if(s.timer<=0){ s.state='idle'; s.timer=0.5+Math.random()*0.6; }
+  }
+
+  if(s.hp<=0 && !s.dead){
+    s.dead = true;
+    hideBossBar();
+    onSurgeonDefeated();
+  }
+}
+
+function onSurgeonDefeated(){
+  player.meleeUpgraded = true;
+  returnStateAfterDialogue = GameState.LAB;
+  showDialogue([
+    "The Surgeon cae. El Limo que recubría su bisturí se endurece sobre el suelo.",
+    "Arthur afila el Half-Sharpened con ese Limo endurecido: ahora golpea con más fuerza, aunque su alcance se reduce.",
+    "Al fondo del quirófano, una puerta antes bloqueada por escombros queda expuesta."
+  ], ()=>{ state = GameState.LAB; });
+}
+
+// ============================================================
+// ARCHIVO DEL EXPERIMENTO 0 (nueva sala, reemplaza el drop automático)
+// ============================================================
+function triggerArchivoDialogue(){
+  returnStateAfterDialogue = GameState.LAB;
+  showDialogue([
+    "Sobre un escritorio metálico, entre papeles quemados, Arthur encuentra un expediente sellado: 'PROYECTO SINCRONÍA — SUJETO #0'.",
+    "Bitácora 1, Dr. Julian Vance — 12 de septiembre: el recluso Victor Kross fue trasladado a las celdas del subsuelo. Sin lazos con el exterior tras masacrar a su propia familia, esquizofrenia severa: dice escuchar un zumbido constante.",
+    "Victor, mirando fijo un péndulo: 'Las voces de mi esposa y mi niña gritan muy fuerte... pero los engranajes las aplastan. Si me meten el reloj en el pecho, ¿el tictac las callará para siempre? Háganlo, o me arrancaré las orejas.'",
+    "Bitácora 2, Dr. Sterling — 28 de septiembre: catorce horas de cirugía. Reemplazaron el corazón de Victor por un escape de áncora de bronce. El reloj de la torre envía pulsaciones magnéticas para mantener el mecanismo en marcha.",
+    "A la novena hora el cuerpo rechazaba el metal. Como último recurso, vertieron tres dosis de El Limo directo en la herida abierta. El resultado fue milagroso y perturbador: amalgamó metal con carne. Victor sobrevivió, pero su temperatura bajó a la de un cadáver.",
+    "Bitácora 3, Dra. Elena Rostova — 5 de octubre: el Sujeto #0 despertó, pero ya no responde al nombre de Victor Kross. Se autonombró 'The Broken Hand'. Hoy detuvo los segunderos del laboratorio durante cuatro minutos exactos.",
+    "Al preguntarle qué ve cuando activa su poder, se clavó las uñas en las sienes y gritó: '¡Odio ver lo que viene! Veo diez mil mañanas y en todos la torre cae bajo tierra... y en el fondo de las ruinas lo veo a él. Un maldito conserje con un fierro afilado. ¡Viene a romperme la mano! ¡No dejen que el conserje baje!'",
+    "Bitácora 4, Dr. Sterling — 14 de octubre, último registro: Kross fingió estar catatónico. Congeló el tiempo en todo el bloque, caminó entre ellos arrancando manecillas de la pared y fundiéndolas en su propia espalda.",
+    "Al reactivarse el tiempo liberó una onda de choque gravitacional. Los cimientos se quiebran. 'El experimento está fuera de contenc—' El registro termina ahí.",
+    "Arthur cierra el expediente, con las manos temblando. Ahora sabe con certeza qué —o quién— espera en lo alto de la torre."
+  ], ()=>{ state = GameState.LAB; });
+}
+function triggerKeyDialogue(){
+  returnStateAfterDialogue = GameState.LAB;
+  showDialogue([
+    "Bajo los restos de un casillero destruido, Arthur encuentra una llave metálica con una etiqueta desgastada: 'ASCENSOR — ACCESO SUBSUELO'."
+  ], ()=>{ state = GameState.LAB; });
+}
+
+// ============================================================
+// CUTSCENE DEL ASCENSOR
+// ============================================================
+let cutsceneTimer = 0;
+let cutsceneKind = null;
+function playElevatorCutscene(){
+  state = GameState.CUTSCENE;
+  cutsceneKind = 'elevator';
+  cutsceneTimer = 0;
+}
+function startTowerTransition(){
+  returnStateAfterDialogue = GameState.TOWER;
+  showDialogue([
+    "El ascensor sube entre chirridos metálicos, atravesando capas de piedra que no deberían estar ahí.",
+    "Arthur aprieta contra su pecho los archivos del Experimento 0. Ya sabe lo que le espera.",
+    "Las puertas se abren. Ante Arthur, la torre del reloj: congelada en el tiempo, con escombros suspendidos en el aire, teñidos por un atardecer que no avanza."
+  ], ()=>{
+    initTower();
+    state = GameState.TOWER;
+  });
+}
+
+// ============================================================
+// TORRE — nivel vertical de parkour (altura reducida a la mitad)
+// ============================================================
+let towerPlatforms = [];
+let towerCamY = 0;
+const TOWER_TOTAL_HEIGHT = 2650;
+let towerFinished = false;
+
+function initTower(){
+  towerPlatforms = [];
+  towerPlatforms.push({x:370,y:2560,w:220,h:30, bob:0});
+  let y = 2460;
+  let x = 460;
+  while(y > 260){
+    x += (Math.random()<0.5? -1:1) * (45+Math.random()*70);
+    x = clamp(x, 90, 750);
+    const w = 130+Math.random()*70;
+    towerPlatforms.push({x, y, w, h:22, bob: Math.random()*Math.PI*2, floaty:true});
+    y -= 70+Math.random()*40;
+  }
+  towerPlatforms.push({x:350,y:200,w:260,h:30, bob:0, isTop:true});
+  player.x = 460; player.y = 2560-STAND_H; player.vx=0; player.vy=0;
+  player.crouching=false; player.h=STAND_H;
+  towerFinished = false;
+  towerCamY = player.y - H/2;
+}
+
+// arena fija para la pelea contra The Broken Hand (sin scroll, evita el bug de quedar flotando)
+const BH_ARENA = [ {x:0,y:460,w:960,h:80} ];
+
+// ============================================================
+// JEFE FINAL: THE BROKEN HAND
+// ============================================================
+let brokenHand = null;
+let mercyPending = false;
+
+function spawnBrokenHand(){
+  towerCamY = 0;
+  player.x = 200; player.y = 460-STAND_H; player.vx=0; player.vy=0; player.onGround=true;
+  player.crouching=false; player.h=STAND_H;
+  brokenHand = {
+    kind:'brokenhand', x:680, y:460-70, w:52, h:70, vx:0, vy:0,
+    hp:260, maxHp:260, dmg:15,
+    state:'idle', timer:1.4, facing:-1, hitFlash:0, dead:false
+  };
+  showBossBar('THE BROKEN HAND');
+}
+
+function updateBrokenHand(dt){
+  if(!brokenHand || brokenHand.dead) return;
+  const b = brokenHand;
+  b.hitFlash = Math.max(0,b.hitFlash-dt);
+  b.facing = player.x < b.x ? -1:1;
+  setBossHp(b.hp,b.maxHp);
+  if(mercyPending) return;
+  b.timer -= dt;
+
+  if(b.state==='idle'){
+    if(b.timer<=0){
+      const dist = Math.abs(player.x-b.x);
+      const roll = Math.random();
+      if(dist<100){ b.state='slam'; b.timer=0.6; }
+      else if(roll<0.45){ b.state='dash'; b.timer=0.4; b.vx=b.facing*560; }
+      else { b.state='handthrow'; b.timer=0.5; }
+    }
+  } else if(b.state==='dash'){
+    b.x += b.vx*dt; b.x = clamp(b.x,20,880);
+    if(rectsOverlap(b,hitboxOf(player)) && player.invuln<=0) damagePlayer(b.dmg+2);
+    if(b.timer<=0){ b.vx=0; b.state='cooldown'; b.timer=0.7; }
+  } else if(b.state==='slam'){
+    if(b.timer<=0){
+      const hb = {x:b.x-30,y:b.y,w:b.w+60,h:b.h+10};
+      if(rectsOverlap(hb,hitboxOf(player)) && player.invuln<=0) damagePlayer(b.dmg);
+      b.state='cooldown'; b.timer=1.0;
+    }
+  } else if(b.state==='handthrow'){
+    if(b.timer<=0){
+      enemyProjectiles.push({x:b.x+b.w/2,y:b.y+20,vx:b.facing*420,vy:-30,w:12,h:12,dmg:12,life:2.4,kind:'handpiece'});
+      b.state='cooldown'; b.timer=0.75;
+    }
+  } else if(b.state==='cooldown'){
+    if(b.timer<=0){ b.state='idle'; b.timer=0.5+Math.random()*0.6; }
+  }
+
+  if(b.hp<=0 && !b.dead){
+    b.dead = true;
+    triggerMercyChoice();
+  }
+}
+
+function triggerMercyChoice(){
+  mercyPending = true;
+  hideBossBar();
+  openChoice(
+    "The Broken Hand cae de rodillas. El Limo gotea de sus manos temblorosas.\n\n\"No es mi culpa... fue la esquizofrenia. La cárcel me cambió. Por favor...\"\n\nArthur está a punto de romper su núcleo.",
+    [
+      {label:'Perdonarlo y extender la mano', action:()=>endGame('ending2')},
+      {label:'Acabar con él', action:()=>endGame('ending3')}
+    ]
+  );
+}
+
+// ============================================================
+// HITBOX / DAÑO
+// ============================================================
+function hitboxOf(p){
+  if(p===player && player.crouching){
+    return {x:p.x, y:p.y, w:p.w, h:CROUCH_H};
+  }
+  return {x:p.x,y:p.y,w:p.w,h:p.h};
+}
+
+function damagePlayer(amount){
+  let dmg = amount;
+  if(player.hasShield) dmg *= 0.5;
+  if(player.armorLevel>0 && player.armorDurability>0){
+    dmg *= 0.7;
+    player.armorDurability -= 1;
+  }
+  player.hp -= dmg;
+  player.invuln = 0.7;
+  screenFlash = 0.15;
+  shakeTimer = Math.max(shakeTimer, 0.18);
+  if(player.hp<=0 && !player.dead){
+    player.hp = 0; player.dead = true;
+    onPlayerDeath();
+  }
+  updateHpUI();
+}
+
+let screenFlash = 0;
+let shakeTimer = 0;
+
+function onPlayerDeath(){
+  returnStateAfterDialogue = GameState.ENDING;
+  showDialogue(["Arthur cae. La oscuridad, y el tic tac, lo envuelven por última vez."], ()=>{
+    endGame('death');
+  });
+}
+
+// ============================================================
+// ATAQUES DEL JUGADOR
+// ============================================================
+function tryMeleeAttack(){
+  if(player.attackCooldown>0 || player.crouching) return;
+  const stats = currentMeleeStats();
+  player.attackCooldown = 0.38;
+  player.attackAnimTimer = 0.18;
+  shakeTimer = Math.max(shakeTimer, 0.06);
+  const hb = {
+    x: player.facing===1 ? player.x+player.w : player.x-stats.range,
+    y: player.y-6, w: stats.range, h: player.h+12
+  };
+  applyDamageInHitbox(hb, stats.dmg);
+}
+function tryBowAttack(){
+  if(player.attackCooldown>0 || player.crouching) return;
+  if(player.materials.wood<=0) return;
+  player.materials.wood -= 1;
+  updateMatUI();
+  const stats = currentBowStats();
+  player.attackCooldown = 0.45;
+  player.attackAnimTimer = 0.18;
+  projectiles.push({
+    x: player.facing===1? player.x+player.w : player.x-8,
+    y: player.y+player.h/2-4, vx: player.facing*640, vy:0, w:8,h:8,
+    dmg: stats.dmg, life: stats.range/640, kind:'arrow'
+  });
+}
+function applyDamageInHitbox(hb, dmg){
+  roomEnemies.forEach(en=>{
+    if(!en.dead && rectsOverlap(hb, hitboxOf(en))){
+      en.hp -= dmg; en.hitFlash = 0.12;
+      if(en.hp<=0 && !en.dead){ en.dead=true; }
+    }
+  });
+  if(surgeon && !surgeon.dead && rectsOverlap(hb,hitboxOf(surgeon))){ surgeon.hp -= dmg; surgeon.hitFlash=0.12; }
+  if(brokenHand && !brokenHand.dead && rectsOverlap(hb,hitboxOf(brokenHand))){ brokenHand.hp -= dmg; brokenHand.hitFlash=0.12; }
+}
+function handleAttackInput(){
+  if(mouseDown && player.attackCooldown<=0 && !player.crouching){
+    const dir = mouseX < (player.x+player.w/2) ? -1 : 1;
+    player.facing = dir;
+    if(player.weapon==='melee') tryMeleeAttack(); else tryBowAttack();
+  }
+}
+
+// ============================================================
+// UI: HUD, materiales, arma, crafteo
+// ============================================================
+function updateHpUI(){ document.getElementById('hpBarInner').style.width = clamp(player.hp/player.maxHp,0,1)*100+'%'; }
+function updateMatUI(){
+  const bar = document.getElementById('matBar');
+  bar.innerHTML='';
+  Object.keys(player.materials).forEach(k=>{
+    if(player.materials[k]>0 || ['metal','wood','thread'].includes(k)){
+      const chip = document.createElement('div');
+      chip.className='matChip';
+      chip.textContent = MAT_LABELS[k]+': '+player.materials[k];
+      bar.appendChild(chip);
+    }
+  });
+}
+function updateWeaponUI(){
+  const el = document.getElementById('weaponInfo');
+  const m = currentMeleeStats(); const b = currentBowStats();
+  el.innerHTML = 'Arma activa: <b>'+(player.weapon==='melee'? m.name : b.name)+'</b><br>'+
+    (player.weapon==='melee' ? ('Daño '+m.dmg) : ('Daño '+b.dmg+' · usa 1 madera/flecha')) +
+    (player.hasShield? '<br>Escudo equipado' : '') +
+    (player.armorLevel>0? '<br>Armadura ('+player.armorDurability+' usos)' : '');
+}
+
+// ---- crafteo ----
+const RECIPES = [
+  { id:'armor', label:'Armadura', desc:'Reduce el daño recibido un 30%. Se desgasta con el uso (15 usos).',
+    cost:{metal:5, thread:2}, canCraft: ()=> !player.crafted.armor,
+    apply: ()=>{ player.armorLevel=1; player.armorDurability=15; player.crafted.armor=true; } },
+  { id:'shield', label:'Escudo', desc:'Reduce a la mitad el daño de los golpes cuerpo a cuerpo enemigos.',
+    cost:{wood:6, metal:1}, canCraft: ()=> !player.crafted.shield,
+    apply: ()=>{ player.hasShield=true; player.crafted.shield=true; } },
+  { id:'extractor', label:'Extractor de metal', desc:'Clava su punta en las grietas del concreto y libera 4 de metal ocultos al instante.',
+    cost:{metal:5, wood:2, thread:1, gear:3, handpiece:1}, canCraft: ()=> true,
+    apply: ()=>{ player.materials.metal += 4; } },
+  { id:'bow1', label:'Mejorar arco → Improved Bow I', desc:'20 de daño, alcance 1/2 de pantalla.',
+    cost:{gear:2, handpiece:1, metal:2}, canCraft: ()=> player.bowTier===0,
+    apply: ()=>{ player.bowTier=1; } },
+  { id:'bow2', label:'Mejorar arco → Improved Bow II', desc:'25 de daño, alcance 3/4 de pantalla.',
+    cost:{gear:3, handpiece:2, metal:3}, canCraft: ()=> player.bowTier===1,
+    apply: ()=>{ player.bowTier=2; } },
+  { id:'bow3', label:'Mejorar arco → Improved Bow III', desc:'30 de daño, alcance de pantalla completa.',
+    cost:{gear:4, handpiece:3, metal:4, thread:2}, canCraft: ()=> player.bowTier===2,
+    apply: ()=>{ player.bowTier=3; } },
+];
+function canAfford(cost){ return Object.keys(cost).every(k=> (player.materials[k]||0) >= cost[k]); }
+function pay(cost){ Object.keys(cost).forEach(k=> player.materials[k]-=cost[k]); }
+function renderCraftPanel(){
+  const list = document.getElementById('craftList');
+  list.innerHTML='';
+  RECIPES.forEach(r=>{
+    if(!r.canCraft()) return;
+    const row = document.createElement('div'); row.className='craftItem';
+    const costStr = Object.keys(r.cost).map(k=>MAT_LABELS[k]+' x'+r.cost[k]).join(', ');
+    const left = document.createElement('div');
+    left.innerHTML = '<div>'+r.label+'</div><div class="desc">'+r.desc+'</div><div class="req">Requiere: '+costStr+'</div>';
+    const btn = document.createElement('button'); btn.className='craftBtn'; btn.textContent='Craftear';
+    btn.disabled = !canAfford(r.cost);
+    btn.onclick = ()=>{ if(canAfford(r.cost)){ pay(r.cost); r.apply(); updateMatUI(); updateWeaponUI(); renderCraftPanel(); } };
+    row.appendChild(left); row.appendChild(btn); list.appendChild(row);
+  });
+  if(list.innerHTML===''){ list.innerHTML = '<div style="color:#8a7460; font-size:13px;">Nada disponible para craftear ahora. Sigue explorando.</div>'; }
+}
+document.getElementById('closeCraft').onclick = ()=> toggleCraft(false);
+function toggleCraft(forceState){
+  const open = forceState!==undefined ? forceState : document.getElementById('craftPanel').style.display!=='block';
+  if(open){
+    if(state===GameState.LAB || state===GameState.TOWER){
+      prevStateBeforeCraft = state;
+      state = GameState.PAUSED_CRAFT;
+      renderCraftPanel();
+      document.getElementById('craftPanel').style.display='block';
+    }
+  } else {
+    document.getElementById('craftPanel').style.display='none';
+    if(prevStateBeforeCraft) state = prevStateBeforeCraft;
+  }
+}
+
+// ============================================================
+// CHOICE OVERLAY genérico
+// ============================================================
+function openChoice(text, options){
+  state = GameState.CHOICE;
+  const ov = document.getElementById('choiceOverlay');
+  document.getElementById('choiceText').textContent = text;
+  const btnWrap = document.getElementById('choiceBtns');
+  btnWrap.innerHTML='';
+  options.forEach(opt=>{
+    const b = document.createElement('button'); b.className='oldbtn'; b.textContent = opt.label;
+    b.onclick = ()=>{ ov.style.display='none'; opt.action(); };
+    btnWrap.appendChild(b);
+  });
+  ov.style.display='flex';
+}
+
+// ============================================================
+// FINALES
+// ============================================================
+function endGame(kind){
+  hideBossBar();
+  state = GameState.ENDING;
+  const ov = document.getElementById('overlay');
+  ov.classList.remove('hidden');
+  const btn = document.getElementById('startBtn');
+  let title='', body='';
+  if(kind==='ending1'){
+    title='FINAL I — El Cobarde';
+    body = "Arthur decide escapar de la torre y se refugia en un búnker improvisado, lo más lejos que pudo llegar. "+
+    "Tres horas después oye un estruendo lejano. Una onda expansiva lo alcanza y lo deja inmóvil, como si el tiempo se hubiese detenido. "+
+    "The Broken Hand llega hasta él: 'Gracias a tu cobardía, todo este mundo podrido perecerá de la forma más patética y estúpida posible, "+
+    "y tú morirás sintiéndote culpable por el resto de tu vida.' Se va riendo. Arthur, sin poder hacer nada, solo logra derramar una lágrima. "+
+    "Los días pasan. Muere a la semana, sin agua ni comida.";
+  } else if(kind==='ending2'){
+    title='FINAL II — La Compasión';
+    body = "Arthur duda, y tras pensarlo bien, extiende la mano para ayudar y perdonar a The Broken Hand. "+
+    "Este esboza una sonrisa y le clava una de sus manecillas en el pecho de Arthur. Antes de que muera, detiene su muerte manipulando el tiempo: "+
+    "'Gracias a tu compasión y debilidad, verás cómo toda la raza humana muere por deshidratación y desnutrición, y sufrirás con el peso de tus actos.' "+
+    "Ríe como loco mientras a Arthur le cae una lágrima. Tres horas después, una onda expansiva detiene el tiempo a su paso. "+
+    "Cinco días más tarde, Arthur fallece contemplando a The Broken Hand reír, ante un mundo inmóvil por el resto de la eternidad.";
+  } else if(kind==='ending3'){
+    title='FINAL TRACER — La Decisión';
+    body = "Arthur decide acabar con The Broken Hand y rompe su núcleo. En su lecho de muerte, este le dice: "+
+    "'Pensé que elegirías ser un cobarde e irte a hacer un estúpido búnker para intentar escapar, o que te daría pena mi estado e intentarías ayudarme. "+
+    "Nunca pensé que elegirías este final...' The Broken Hand muere. Arthur comprende, demasiado tarde, que Victor Kross podía ver lo que pasaría en el futuro.";
+  } else if(kind==='death'){
+    title='ARTHUR HA CAÍDO';
+    body = "El Limo se lleva lo último que quedaba de él. La torre sigue sonando, tic, tac, tic, tac, para nadie.";
+  }
+  ov.querySelector('h1').textContent = title;
+  ov.querySelector('h2').textContent = '';
+  ov.querySelectorAll('p').forEach(p=>p.remove());
+  const p = document.createElement('p'); p.textContent = body;
+  ov.insertBefore(p, btn);
+  btn.textContent='JUGAR DE NUEVO';
+  btn.onclick = ()=> location.reload();
+  document.getElementById('ticker').style.display='none';
+}
+
+// ============================================================
+// TOP DE LA TORRE — elección Escapar / Enfrentar
+// ============================================================
+function onReachTowerTop(){
+  if(towerFinished) return;
+  towerFinished = true;
+  player.vx=0; player.vy=0;
+  openChoice(
+    "Arthur llega a lo más alto. Entre los escombros suspendidos en el aire, contra el cielo del atardecer, ve a The Broken Hand.\n\n¿Qué hará Arthur?",
+    [
+      {label:'Escapar de la torre', action:()=> endGame('ending1')},
+      {label:'Enfrentar a The Broken Hand', action:()=>{ state = GameState.TOWER; spawnBrokenHand(); }}
+    ]
+  );
+}
+
+// ============================================================
+// FÍSICA COMPARTIDA DEL JUGADOR
+// ============================================================
+function updatePlayerCommon(dt){
+  if(player.dead) return;
+  const crouchHeld = keys['KeyS'];
+  if(crouchHeld && !player.crouching && player.onGround){
+    player.crouching = true;
+    player.y += (STAND_H - CROUCH_H);
+    player.h = CROUCH_H;
+  } else if(!crouchHeld && player.crouching){
+    player.crouching = false;
+    player.y -= (STAND_H - CROUCH_H);
+    player.h = STAND_H;
+  }
+
+  const speed = player.crouching ? 100 : 230;
+  let moveInput = 0;
+  if(keys['KeyA']) moveInput -= 1;
+  if(keys['KeyD']) moveInput += 1;
+  player.vx = lerp(player.vx, moveInput*speed, 0.28);
+  if(moveInput!==0) player.facing = moveInput;
+
+  if(keys['KeyW'] && player.onGround && !player.crouching){
+    player.vy = -560; player.onGround = false;
+  }
+  player.steamCooldown = Math.max(0, player.steamCooldown-dt);
+  if(keys['KeyE'] && player.steamCooldown<=0 && !player.onGround){
+    player.vy = -480; player.steamCooldown = player.steamMaxCooldown;
+  }
+
+  player.vy += GRAVITY*dt;
+  player.vy = Math.min(player.vy, 1200);
+
+  player.invuln = Math.max(0, player.invuln-dt);
+  player.attackCooldown = Math.max(0, player.attackCooldown-dt);
+  player.attackAnimTimer = Math.max(0, player.attackAnimTimer-dt);
+}
+
+// calcula el rectángulo EFECTIVO de una plataforma de la torre (si flota, aplica el mismo
+// desplazamiento senoidal que se usa al dibujarla, para que la colisión nunca se desincronice
+// del dibujo — evita que el jugador quede parado "en el aire" o hundido en la plataforma)
+function effectivePlatformRect(p){
+  if(p.floaty){
+    return {x:p.x, y:p.y+Math.sin(p.bob)*12, w:p.w, h:p.h, isTop:p.isTop};
+  }
+  return p;
+}
+
+// resuelve colisión contra una lista de rectángulos estáticos; devuelve la plataforma sobre la que aterrizó (o null)
+function physicsStep(dt, platformRectsRaw){
+  const platformRects = platformRectsRaw.map(effectivePlatformRect);
+  player.x += player.vx*dt;
+  player.x = clamp(player.x, 0, W-player.w);
+  platformRects.forEach(p=>{
+    if(rectsOverlap(hitboxOf(player), p)){
+      if(player.x < p.x) player.x = p.x - player.w; else player.x = p.x + p.w;
+    }
+  });
+
+  player.y += player.vy*dt;
+  player.onGround = false;
+  let landed = null;
+  platformRects.forEach(p=>{
+    if(rectsOverlap(hitboxOf(player), p)){
+      if(player.vy>=0 && (player.y+player.h-player.vy*dt) <= p.y+1){
+        player.y = p.y - player.h; player.vy = 0; player.onGround = true; landed = p;
+      } else if(player.vy<0 && (player.y-player.vy*dt) >= p.y+p.h-1){
+        player.y = p.y+p.h; player.vy = 0;
+      }
+    }
+  });
+  return landed;
+}
+
+// ============================================================
+// ENEMIGOS MINDLESS
+// ============================================================
+function updateMindless(en, dt){
+  if(en.dead) return;
+  en.hitFlash = Math.max(0,en.hitFlash-dt);
+  en.animT += dt;
+  const dx = player.x - en.x;
+  const dist = Math.abs(dx);
+  if(dist < 220) en.state='chase'; else if(dist>320) en.state='patrol';
+
+  if(en.state==='patrol'){
+    en.vx = en.patrolDir*55;
+    if(Math.abs(en.x-en.patrolOrigin) > en.patrolRange) en.patrolDir *= -1;
+  } else {
+    en.vx = Math.sign(dx)* (dist<40? 0:70);
+  }
+  en.x += en.vx*dt;
+
+  en.attackCooldown = Math.max(0, en.attackCooldown-dt);
+  if(dist<34 && en.attackCooldown<=0 && player.invuln<=0){
+    damagePlayer(en.dmg);
+    en.attackCooldown = 0.8;
+  }
+}
+
+// ============================================================
+// PROYECTILES
+// ============================================================
+function updateProjectiles(dt){
+  projectiles.forEach(p=>{
+    p.x += p.vx*dt; p.life -= dt;
+    const hb = {x:p.x,y:p.y,w:p.w,h:p.h};
+    let hit=false;
+    roomEnemies.forEach(en=>{
+      if(!en.dead && rectsOverlap(hb,hitboxOf(en))){ en.hp-=p.dmg; en.hitFlash=0.12; hit=true; if(en.hp<=0)en.dead=true; }
+    });
+    if(surgeon && !surgeon.dead && rectsOverlap(hb,hitboxOf(surgeon))){ surgeon.hp-=p.dmg; surgeon.hitFlash=0.12; hit=true; }
+    if(brokenHand && !brokenHand.dead && rectsOverlap(hb,hitboxOf(brokenHand))){ brokenHand.hp-=p.dmg; brokenHand.hitFlash=0.12; hit=true; }
+    if(hit) p.life=0;
+  });
+  projectiles = projectiles.filter(p=>p.life>0 && p.x>-20 && p.x<W+20);
+
+  enemyProjectiles.forEach(p=>{
+    p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 260*dt; p.life -= dt;
+    if(rectsOverlap({x:p.x,y:p.y,w:p.w,h:p.h}, hitboxOf(player)) && player.invuln<=0){
+      damagePlayer(p.dmg); p.life=0;
+    }
+  });
+  enemyProjectiles = enemyProjectiles.filter(p=>p.life>0);
+}
+
+// ============================================================
+// PICKUPS: instantáneos (bandage, antidote, archivo, llave)
+// ============================================================
+function updatePickups(list, dt){
+  list.forEach(pk=>{
+    if(pk.taken || pk.isPile) return;
+    pk.bob += dt*3;
+    if(rectsOverlap({x:pk.x,y:pk.y,w:pk.w,h:pk.h}, hitboxOf(player))){
+      pk.taken = true;
+      if(pk.type==='archivo'){ player.hasFiles=true; triggerArchivoDialogue(); }
+      else if(pk.type==='llave'){ player.hasKey=true; triggerKeyDialogue(); }
+      else { player.materials[pk.type]=(player.materials[pk.type]||0)+pk.amount; updateMatUI(); }
+    }
+  });
+}
+
+// ============================================================
+// RECOLECCIÓN: pilas de materiales, mantener R
+// ============================================================
+function updateGathering(list, dt){
+  const holding = keys['KeyR'];
+  list.forEach(pk=>{
+    if(pk.taken || !pk.isPile) return;
+    pk.bob += dt*2;
+    const zone = {x:pk.x-14, y:pk.y-14, w:pk.w+28, h:pk.h+28};
+    const near = rectsOverlap(zone, hitboxOf(player));
+    if(near && holding){
+      pk.gatherProgress += dt/GATHER_TICK;
+      if(pk.gatherProgress>=1){
+        pk.gatherProgress = 0;
+        pk.remaining -= 1;
+        player.materials[pk.type] = (player.materials[pk.type]||0)+1;
+        updateMatUI();
+        if(pk.remaining<=0) pk.taken = true;
+      }
+    } else {
+      pk.gatherProgress = Math.max(0, pk.gatherProgress - dt*1.5);
+    }
+  });
+}
+
+// ============================================================
+// ZONA DEL ASCENSOR
+// ============================================================
+function checkElevatorZone(){
+  if(!currentRoom.isElevatorRoom) return;
+  if(elevatorTriggered) return;
+  const zone = currentRoom.elevatorZone;
+  if(rectsOverlap(hitboxOf(player), zone) && (keys['Space']||keys['Enter'])){
+    elevatorTriggered = true;
+    playElevatorCutscene();
+  }
+}
+
+// ============================================================
+// TRANSICIÓN ENTRE SALAS
+// ============================================================
+function checkRoomTransition(){
+  if(currentRoom.exitCondition && !currentRoom.exitCondition()) return;
+  if(player.x > 930 && currentRoomIndex < labRooms.length-1){
+    loadRoom(currentRoomIndex+1);
+  }
+}
+
+// ============================================================
+// ACTUALIZACIÓN: LABORATORIO
+// ============================================================
+function updateLab(dt){
+  updatePlayerCommon(dt);
+  physicsStep(dt, currentRoom.platforms);
+  if(currentRoom.exitCondition && !currentRoom.exitCondition()){
+    player.x = Math.min(player.x, 900);
+  }
+  roomEnemies.forEach(en=>updateMindless(en,dt));
+  if(currentRoom.isBossRoom) updateSurgeon(dt);
+  updateProjectiles(dt);
+  updatePickups(roomPickups, dt);
+  updateGathering(roomPickups, dt);
+  checkRoomTransition();
+  checkElevatorZone();
+  handleAttackInput();
+}
+
+// ============================================================
+// ACTUALIZACIÓN: TORRE (ascenso)
+// ============================================================
+function updateTowerAscent(dt){
+  updatePlayerCommon(dt);
+  towerPlatforms.forEach(p=>{ if(p.floaty) p.bob += dt*1.1; });
+  const landed = physicsStep(dt, towerPlatforms);
+
+  if(player.y > TOWER_TOTAL_HEIGHT+150){
+    player.y = 2560-STAND_H; player.x=460; player.vy=0; player.h=STAND_H; player.crouching=false;
+  }
+
+  towerCamY = lerp(towerCamY, player.y - H/2, 0.12);
+  towerCamY = clamp(towerCamY, -50, TOWER_TOTAL_HEIGHT-H+250);
+
+  updateProjectiles(dt);
+  handleAttackInput();
+
+  if(landed && landed.isTop && !towerFinished){
+    onReachTowerTop();
+  }
+}
+
+// ============================================================
+// ACTUALIZACIÓN: TORRE (combate contra The Broken Hand)
+// ============================================================
+function updateTowerBoss(dt){
+  updatePlayerCommon(dt);
+  physicsStep(dt, BH_ARENA);
+  updateBrokenHand(dt);
+  updateProjectiles(dt);
+  handleAttackInput();
+}
+
+// ============================================================
+// LOOP PRINCIPAL
+// ============================================================
+let lastTime = performance.now();
+let now_g = 0;
+function loop(now){
+  const dt = Math.min(0.033, (now-lastTime)/1000);
+  lastTime = now;
+  now_g += dt;
+
+  screenFlash = Math.max(0, screenFlash-dt);
+  shakeTimer = Math.max(0, shakeTimer-dt);
+
+  if(state===GameState.LAB){
+    updateLab(dt);
+  } else if(state===GameState.TOWER){
+    if(brokenHand && !brokenHand.dead) updateTowerBoss(dt);
+    else updateTowerAscent(dt);
+  } else if(state===GameState.CUTSCENE){
+    cutsceneTimer += dt;
+    if(cutsceneKind==='elevator' && cutsceneTimer>1.7){
+      cutsceneKind = null;
+      startTowerTransition();
+    }
+  }
+
+  render();
+  requestAnimationFrame(loop);
+}
+
+// ============================================================
+// RENDER — FONDOS
+// ============================================================
+function drawBackgroundLab(){
+  const grad = ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#171412'); grad.addColorStop(1,'#0a0808');
+  ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
+
+  // pilares de fondo (parallax simple)
+  ctx.fillStyle = 'rgba(10,8,7,0.6)';
+  for(let i=0;i<5;i++){
+    const bx = (i*210 + (currentRoomIndex*37))%(W+120) - 60;
+    ctx.fillRect(bx, 40, 26, 340);
+  }
+
+  ctx.fillStyle = '#1f1c1a';
+  ctx.fillRect(0,0,W,460);
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth=1.4;
+  for(let i=0;i<14;i++){
+    ctx.beginPath();
+    const bx = (i*97+ (currentRoomIndex*53))%W;
+    ctx.moveTo(bx, 0);
+    ctx.lineTo(bx+ (Math.sin(i*3)*30), 460);
+    ctx.stroke();
+  }
+  // manchas de humedad / derrumbe
+  ctx.fillStyle = 'rgba(30,26,22,0.5)';
+  for(let i=0;i<6;i++){
+    const rx = (i*151+currentRoomIndex*61)%W;
+    ctx.beginPath(); ctx.ellipse(rx, 60+((i*47)%140), 34, 18, 0, 0, Math.PI*2); ctx.fill();
+  }
+
+  // piso de azulejos
+  ctx.fillStyle = '#3a3936'; ctx.fillRect(0,460,W,H-460);
+  ctx.strokeStyle = '#242322';
+  for(let i=0;i<W;i+=40){ ctx.beginPath(); ctx.moveTo(i,460); ctx.lineTo(i,H); ctx.stroke(); }
+  // escombros/rubble en el piso
+  ctx.fillStyle = '#242220';
+  for(let i=0;i<7;i++){
+    const rx = (i*133+currentRoomIndex*71)%W;
+    const ry = 470+((i*23)%50);
+    ctx.beginPath();
+    ctx.moveTo(rx,ry); ctx.lineTo(rx+14,ry-8); ctx.lineTo(rx+26,ry+4); ctx.lineTo(rx+10,ry+10); ctx.closePath();
+    ctx.fill();
+  }
+
+  // luces parpadeantes tipo foco
+  for(let i=0;i<3;i++){
+    const lx = 160+i*340;
+    const flick = 0.10+Math.abs(Math.sin(now_g*3.3+i*2))*0.10;
+    const g = ctx.createRadialGradient(lx,20,4,lx,20,150);
+    g.addColorStop(0,'rgba(220,205,160,'+flick+')');
+    g.addColorStop(1,'rgba(220,205,160,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(lx-150,0,300,300);
+  }
+}
+
+function drawBackgroundTower(){
+  const grad = ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,   '#4a2418');
+  grad.addColorStop(0.25,'#8a3820');
+  grad.addColorStop(0.48,'#c85a28');
+  grad.addColorStop(0.68,'#e8862f');
+  grad.addColorStop(0.85,'#f7b563');
+  grad.addColorStop(1,   '#3a1c10');
+  ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
+
+  // sol grande y bajo, típico de un atardecer detenido en el tiempo
+  const sunX = W-190, sunY = 340;
+  const glow = ctx.createRadialGradient(sunX,sunY,10,sunX,sunY,260);
+  glow.addColorStop(0,'rgba(255,224,160,0.9)');
+  glow.addColorStop(0.35,'rgba(255,150,60,0.45)');
+  glow.addColorStop(1,'rgba(255,120,40,0)');
+  ctx.fillStyle = glow; ctx.fillRect(sunX-260,sunY-260,520,520);
+  // halo intermedio para dar sensación de calor
+  ctx.fillStyle = 'rgba(255,180,90,0.35)';
+  ctx.beginPath(); ctx.arc(sunX, sunY, 74, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,236,190,0.95)';
+  ctx.beginPath(); ctx.arc(sunX, sunY, 44, 0, Math.PI*2); ctx.fill();
+
+  // nubes suaves, tonos anaranjados
+  ctx.fillStyle = 'rgba(255,170,110,0.14)';
+  for(let i=0;i<4;i++){
+    const cx = (i*260+80)%(W+200)-100;
+    ctx.beginPath(); ctx.ellipse(cx, 110+i*40, 95, 20, 0, 0, Math.PI*2); ctx.fill();
+  }
+
+  // siluetas de escombros de fondo flotando (decorativos)
+  ctx.fillStyle = 'rgba(20,10,10,0.35)';
+  for(let i=0;i<6;i++){
+    const dx = (i*160 + Math.sin(now_g*0.3+i)*20) % (W+100) - 50;
+    const dy = 200+ (i*53)%260;
+    ctx.save(); ctx.translate(dx,dy); ctx.rotate(i);
+    ctx.fillRect(-16,-6,32,12);
+    ctx.restore();
+  }
+}
+
+// ============================================================
+// RENDER — ENTIDADES
+// ============================================================
+function drawPlayer(px,py){
+  const p = player;
+  ctx.save();
+  ctx.translate(px, py);
+  if(p.invuln>0 && Math.floor(now_g*20)%2===0){ ctx.globalAlpha = 0.4; }
+  const bodyH = p.crouching ? CROUCH_H : STAND_H;
+  const walkCycle = Math.abs(p.vx)>15 ? Math.sin(now_g*14)*4 : 0;
+
+  // piernas
+  ctx.fillStyle = '#20201c';
+  ctx.fillRect(3, bodyH-14+ (p.onGround? walkCycle*0.4:0), 7, 14);
+  ctx.fillRect(p.w-10, bodyH-14- (p.onGround? walkCycle*0.4:0), 7, 14);
+
+  // torso
+  ctx.fillStyle = '#2c2622';
+  ctx.fillRect(0, bodyH-32, p.w, 22);
+
+  // cabeza (no se agacha del todo, se mantiene proporcional)
+  ctx.fillStyle = '#c9b79a';
+  ctx.fillRect(4, bodyH-42, p.w-8, 14);
+
+  // mochila de vapor
+  ctx.fillStyle = '#5a5a5a';
+  ctx.fillRect(p.facing===1? -4:p.w-6, bodyH-30, 8, 20);
+  if(p.steamCooldown>0){
+    ctx.fillStyle = 'rgba(150,150,150,0.35)';
+    ctx.fillRect(p.facing===1? -4:p.w-6, bodyH-36, 8, 6*(p.steamCooldown/p.steamMaxCooldown));
+  }
+
+  // arma
+  ctx.strokeStyle = '#b7b7b7'; ctx.lineWidth=3;
+  const atkT = p.attackAnimTimer>0 ? 1 : 0.35;
+  ctx.beginPath();
+  if(p.weapon==='melee'){
+    const len = currentMeleeStats().range*0.45;
+    const dir = p.facing;
+    ctx.moveTo(p.w/2, bodyH-24);
+    ctx.lineTo(p.w/2 + dir*(14+len*atkT), bodyH-30);
+  } else {
+    ctx.strokeStyle = '#8a6b3a';
+    ctx.moveTo(p.w/2, bodyH-24);
+    const bowDir = p.facing;
+    ctx.arc(p.w/2, bodyH-24, 12, -0.9*bowDir+ (bowDir===1?0:Math.PI), 0.9*bowDir+(bowDir===1?0:Math.PI));
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawEnemyMindless(en){
+  ctx.save();
+  ctx.translate(en.x, en.y);
+  const sway = Math.sin(en.animT*4)*2;
+  ctx.rotate(sway*0.01);
+  ctx.fillStyle = en.hitFlash>0 ? '#ffffff' : '#232821';
+  ctx.fillRect(0,8,en.w,en.h-8);
+  ctx.fillStyle = '#3f4a35';
+  ctx.fillRect(6,0,en.w-12,12);
+  // ojos
+  ctx.fillStyle = 'rgba(120,190,90,0.85)';
+  ctx.fillRect(9,5,3,3); ctx.fillRect(en.w-13,5,3,3);
+  // goteo de limo animado
+  ctx.fillStyle = 'rgba(8,16,8,0.85)';
+  for(let i=0;i<3;i++){
+    const dripY = ((now_g*40+i*17)%18);
+    ctx.fillRect(4+i*9, en.h-10+dripY*0.4, 3, 8+dripY*0.3);
+  }
+  ctx.restore();
+  ctx.fillStyle='#200'; ctx.fillRect(en.x, en.y-8, en.w, 4);
+  ctx.fillStyle='#a33'; ctx.fillRect(en.x, en.y-8, en.w*clamp(en.hp/en.maxHp,0,1), 4);
+}
+
+function drawSurgeon(s){
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.fillStyle = s.hitFlash>0? '#fff' : '#7ec4d6';
+  ctx.fillRect(0,14,s.w,s.h-14);
+  ctx.fillStyle = 'rgba(8,14,8,0.85)';
+  ctx.fillRect(4,s.h-16,s.w-8,16);
+  ctx.fillStyle = '#c9b79a';
+  ctx.beginPath(); ctx.arc(s.w/2, 8, 12, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#dedede';
+  ctx.fillRect(s.w/2-9,4,18,7); // mascarilla
+  ctx.strokeStyle='#555'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(s.w/2-5,8,4,0,Math.PI*2); ctx.arc(s.w/2+5,8,4,0,Math.PI*2); ctx.stroke();
+  // navaja en mano
+  ctx.strokeStyle='#ccc'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(s.facing===1? s.w:0, 30); ctx.lineTo(s.facing===1? s.w+14:-14, 22); ctx.stroke();
+  ctx.restore();
+}
+
+function drawBrokenHand(b){
+  ctx.save();
+  // aura de distorsión temporal
+  const pulse = 0.15+Math.abs(Math.sin(now_g*2))*0.12;
+  const aura = ctx.createRadialGradient(b.x+b.w/2,b.y+b.h/2,4,b.x+b.w/2,b.y+b.h/2,90);
+  aura.addColorStop(0,'rgba(150,20,40,'+pulse+')');
+  aura.addColorStop(1,'rgba(150,20,40,0)');
+  ctx.fillStyle = aura; ctx.fillRect(b.x-90,b.y-90,b.w+180,b.h+180);
+
+  ctx.translate(b.x,b.y);
+  ctx.fillStyle = b.hitFlash>0? '#fff' : '#2a1418';
+  ctx.fillRect(0,14,b.w,b.h-14);
+  ctx.fillStyle = 'rgba(15,5,5,0.9)';
+  ctx.fillRect(0,b.h-18,b.w,18);
+  ctx.fillStyle = '#c9b79a';
+  ctx.beginPath(); ctx.arc(b.w/2,10,14,0,Math.PI*2); ctx.fill();
+  // grietas del rostro tipo porcelana
+  ctx.strokeStyle='#5a4030'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(b.w/2-10,2); ctx.lineTo(b.w/2-3,10); ctx.lineTo(b.w/2-8,18); ctx.stroke();
+  ctx.strokeStyle='#a33'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(b.w/2-8,6); ctx.lineTo(b.w/2+8,14); ctx.stroke(); // sonrisa quebrada
+  // manecillas goteando limo
+  ctx.strokeStyle='#111'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(-8,20); ctx.lineTo(-22,10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(b.w+8,20); ctx.lineTo(b.w+22,10); ctx.stroke();
+  ctx.fillStyle='rgba(10,5,5,0.8)';
+  for(let i=0;i<2;i++){ const dy=((now_g*50+i*23)%16); ctx.fillRect(-22+i*2, 10+dy*0.5, 3, 6); }
+  ctx.restore();
+}
+
+// ---- pilas de materiales con más detalle visual ----
+function drawPileShape(type, x, y, bobY){
+  ctx.save();
+  ctx.translate(x, y+bobY);
+  if(type==='metal'){
+    ctx.strokeStyle = MAT_COLORS.metal; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(0,14); ctx.lineTo(6,2); ctx.lineTo(10,10); ctx.lineTo(16,0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(2,16); ctx.lineTo(14,16); ctx.stroke();
+  } else if(type==='wood'){
+    ctx.fillStyle = MAT_COLORS.wood;
+    ctx.beginPath(); ctx.ellipse(6,12,7,4,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(11,8,7,4,0,0,Math.PI*2); ctx.fill();
+  } else if(type==='thread'){
+    ctx.strokeStyle = MAT_COLORS.thread; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(7,10,6,5,0.4,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(9,8,5,4,-0.3,0,Math.PI*2); ctx.stroke();
+  } else if(type==='gear'){
+    ctx.strokeStyle = MAT_COLORS.gear; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(8,8,6,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(8,8,2,0,Math.PI*2); ctx.stroke();
+  } else if(type==='handpiece'){
+    ctx.strokeStyle = MAT_COLORS.handpiece; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(2,14); ctx.lineTo(12,2); ctx.stroke();
+  } else if(type==='bandage'){
+    ctx.fillStyle = MAT_COLORS.bandage;
+    ctx.fillRect(0,4,16,8);
+    ctx.strokeStyle='#b0a898'; ctx.strokeRect(0,4,16,8);
+  } else if(type==='antidote'){
+    ctx.fillStyle = MAT_COLORS.antidote;
+    ctx.fillRect(4,2,8,14);
+    ctx.fillStyle='#4a6a44'; ctx.fillRect(6,0,4,3);
+  } else if(type==='archivo'){
+    ctx.fillStyle = MAT_COLORS.archivo;
+    ctx.fillRect(0,0,16,18);
+    ctx.strokeStyle='#8a7a55';
+    for(let i=0;i<4;i++){ ctx.beginPath(); ctx.moveTo(2,4+i*3.5); ctx.lineTo(14,4+i*3.5); ctx.stroke(); }
+  } else if(type==='llave'){
+    ctx.strokeStyle = MAT_COLORS.llave; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(4,4,4,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(7,7); ctx.lineTo(16,16); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(12,12); ctx.lineTo(15,9); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawPickups(list){
+  list.forEach(pk=>{
+    if(pk.taken) return;
+    const yOff = Math.sin(pk.bob)*3;
+    drawPileShape(pk.type, pk.x, pk.y, yOff);
+    if(pk.isPile){
+      // contador restante
+      ctx.fillStyle='rgba(220,210,190,0.8)'; ctx.font='9px Georgia';
+      ctx.fillText(String(pk.remaining), pk.x+18, pk.y+16+yOff);
+      // anillo de progreso al recolectar
+      if(pk.gatherProgress>0){
+        ctx.strokeStyle='#e0b060'; ctx.lineWidth=2;
+        ctx.beginPath();
+        ctx.arc(pk.x+8, pk.y+8+yOff, 14, -Math.PI/2, -Math.PI/2 + pk.gatherProgress*Math.PI*2);
+        ctx.stroke();
+      }
+    }
+  });
+}
+
+function drawProjectiles(offsetY){
+  offsetY = offsetY||0;
+  ctx.fillStyle = '#e0d7b0';
+  projectiles.forEach(p=> ctx.fillRect(p.x,p.y+offsetY,p.w,p.h));
+  ctx.fillStyle = '#301010';
+  enemyProjectiles.forEach(p=> ctx.fillRect(p.x,p.y+offsetY,p.w,p.h));
+}
+
+function drawRoomEntities(){
+  ctx.fillStyle='#3a352e';
+  currentRoom.platforms.forEach(p=>{ if(p.h<=30 && p.y>60){ ctx.fillRect(p.x,p.y,p.w,p.h); } });
+
+  // elevador (sala 5)
+  if(currentRoom.isElevatorRoom){
+    const z = currentRoom.elevatorZone;
+    ctx.fillStyle = '#26221e';
+    ctx.fillRect(z.x-10, z.y-10, z.w+20, z.h+10);
+    ctx.fillStyle = '#0e0c0a';
+    ctx.fillRect(z.x, z.y, z.w, z.h);
+    ctx.strokeStyle='#5a4c3a'; ctx.lineWidth=3; ctx.strokeRect(z.x, z.y, z.w, z.h);
+    if(rectsOverlap(hitboxOf(player), z)){
+      ctx.fillStyle='rgba(230,210,170,0.85)'; ctx.font='13px Georgia'; ctx.textAlign='center';
+      ctx.fillText('Presiona ESPACIO para subir', z.x+z.w/2, z.y-16);
+      ctx.textAlign='left';
+    }
+  }
+
+  drawPickups(roomPickups);
+
+  // pista de recolección
+  roomPickups.forEach(pk=>{
+    if(!pk.taken && pk.isPile){
+      const zone = {x:pk.x-14, y:pk.y-14, w:pk.w+28, h:pk.h+28};
+      if(rectsOverlap(zone, hitboxOf(player)) && pk.gatherProgress<=0){
+        ctx.fillStyle='rgba(220,210,190,0.7)'; ctx.font='10px Georgia'; ctx.textAlign='center';
+        ctx.fillText('Mantén R', pk.x+8, pk.y-10);
+        ctx.textAlign='left';
+      }
+    }
+  });
+
+  roomEnemies.forEach(en=> drawEnemyMindless(en));
+  if(surgeon) drawSurgeon(surgeon);
+  drawProjectiles();
+  drawPlayer(player.x, player.y);
+
+  ctx.fillStyle='rgba(220,210,190,0.5)'; ctx.font='11px Georgia';
+  ctx.fillText(currentRoom.name, 12, 500);
+
+  if(!currentRoom.exitCondition && !currentRoom.isElevatorRoom && currentRoomIndex<labRooms.length-1){
+    ctx.fillStyle='rgba(180,150,100,0.5)'; ctx.fillRect(935,340,20,120);
+  } else if(currentRoom.exitCondition && currentRoom.exitCondition() && currentRoomIndex<labRooms.length-1){
+    ctx.fillStyle='rgba(180,150,100,0.5)'; ctx.fillRect(935,340,20,120);
+  }
+}
+
+function drawTowerEntities(){
+  ctx.save();
+  ctx.translate(0, -towerCamY);
+  towerPlatforms.forEach(p=>{
+    const py = effectivePlatformRect(p).y;
+    ctx.fillStyle = p.isTop? '#5a4a3a' : '#4a4038';
+    ctx.fillRect(p.x, py, p.w, p.h);
+    ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fillRect(p.x, py+p.h-4, p.w, 4);
+    if(p.isTop){
+      ctx.strokeStyle='rgba(230,170,90,0.5)'; ctx.lineWidth=2; ctx.strokeRect(p.x,py,p.w,p.h);
+    }
+  });
+  drawPlayer(player.x, player.y);
+  ctx.restore();
+  drawProjectiles(-towerCamY);
+}
+
+function drawBossArena(){
+  // suelo de la arena final (torre, punto fijo)
+  ctx.fillStyle = '#4a4038';
+  ctx.fillRect(0,460,W,80);
+  ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.fillRect(0,460,W,4);
+  if(brokenHand) drawBrokenHand(brokenHand);
+  drawPlayer(player.x, player.y);
+  drawProjectiles();
+}
+
+// ============================================================
+// RENDER PRINCIPAL
+// ============================================================
+function render(){
+  ctx.save();
+  if(shakeTimer>0){
+    const sx = (Math.random()-0.5)*shakeTimer*40;
+    const sy = (Math.random()-0.5)*shakeTimer*40;
+    ctx.translate(sx,sy);
+  }
+  ctx.clearRect(-20,-20,W+40,H+40);
+
+  if(state===GameState.LAB || (state===GameState.PAUSED_CRAFT && prevStateBeforeCraft===GameState.LAB) || (state===GameState.PAUSED && prevStateBeforePause===GameState.LAB)){
+    drawBackgroundLab(); if(currentRoom) drawRoomEntities();
+  } else if(state===GameState.TOWER || (state===GameState.PAUSED_CRAFT && prevStateBeforeCraft===GameState.TOWER) || (state===GameState.PAUSED && prevStateBeforePause===GameState.TOWER)){
+    drawBackgroundTower();
+    if(brokenHand && !brokenHand.dead) drawBossArena(); else drawTowerEntities();
+  } else if(state===GameState.DIALOGUE){
+    if(returnStateAfterDialogue===GameState.TOWER){ drawBackgroundTower(); if(brokenHand) drawBossArena(); else drawTowerEntities(); }
+    else { drawBackgroundLab(); if(currentRoom) drawRoomEntities(); }
+  } else if(state===GameState.CHOICE){
+    drawBackgroundTower();
+    if(brokenHand){ if(brokenHand.dead) drawBossArena(); }
+  } else if(state===GameState.CUTSCENE){
+    drawBackgroundLab(); if(currentRoom) drawRoomEntities();
+    const prog = clamp(cutsceneTimer/1.7, 0, 1);
+    const half = (W/2)*Math.min(1,prog*1.3);
+    ctx.fillStyle='#050403';
+    ctx.fillRect(0,0,half,H);
+    ctx.fillRect(W-half,0,half,H);
+    if(prog>0.75){
+      ctx.fillStyle='rgba(230,210,170,0.8)'; ctx.font='14px Georgia'; ctx.textAlign='center';
+      ctx.fillText('El ascensor sube...', W/2, H/2);
+      ctx.textAlign='left';
+    }
+  }
+
+  if(state===GameState.PAUSED){
+    ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#e6d5bf'; ctx.font='28px Georgia'; ctx.textAlign='center';
+    ctx.fillText('PAUSADO', W/2, H/2-10);
+    ctx.font='14px Georgia'; ctx.fillStyle='#a89880';
+    ctx.fillText('Presiona P para continuar', W/2, H/2+20);
+    ctx.textAlign='left';
+  }
+
+  if(screenFlash>0){
+    ctx.fillStyle = 'rgba(180,20,20,'+(screenFlash*2)+')';
+    ctx.fillRect(-20,-20,W+40,H+40);
+  }
+  ctx.restore();
+}
+
+// ============================================================
+// INICIO DEL JUEGO
+// ============================================================
+document.getElementById('startBtn').addEventListener('click', ()=>{
+  document.getElementById('overlay').classList.add('hidden');
+  updateHpUI(); updateMatUI(); updateWeaponUI();
+  returnStateAfterDialogue = GameState.LAB;
+  loadRoom(0);
+  showDialogue([
+    "Tick... tock... tick... tock... Arthur escucha el sonido de siempre en la torre del reloj. Primero uno, luego otro.",
+    "El sonido se distorsiona, cada vez más grave, hasta un estruendo. Todo se vuelve oscuro.",
+    "Al despertar, Arthur no recuerda nada. Ni quién es, ni dónde está. A su alrededor: ruinas. No parece una torre de reloj. Parece un laboratorio.",
+    "Nadie a la vista. Solo objetos: tazas, cuadros, lámparas, libros... algo en ellos le resulta familiar.",
+    "Entre los escombros, distingue rasguños. Signos de una pelea. Arthur empieza a recolectar materiales: necesitará armas."
+  ], ()=>{ state = GameState.LAB; });
+});
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
